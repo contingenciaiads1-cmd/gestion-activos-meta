@@ -113,6 +113,9 @@
     (items || []).forEach(a => { const c = cardLabel(a); if (c && c !== '—' && !set.includes(c)) set.push(c); });
     return set;
   };
+  // Estado (revisión) de una WABA de WhatsApp.
+  const wabaEstado = (s) => ({ APPROVED:'🟢 Activa', PENDING:'⏳ Pendiente', REJECTED:'🔴 Restringida', DISABLED:'🔴 Deshabilitada', PENDING_REVIEW:'⏳ En revisión' }[s] || (s ? esc(s) : '—'));
+  const wabaCls = (s) => (s === 'APPROVED' ? 'gpm-ok' : (s === 'REJECTED' || s === 'DISABLED' ? 'gpm-no' : 'gpm-warn'));
 
   // Panel flotante reutilizable (por encima del panel principal).
   function abrirPopover(titulo, contenido) {
@@ -228,17 +231,27 @@
     };
   }
 
-  // Contenido del popover de WABAs de un BM (números se cargan al pulsar).
-  function popWaba(b) {
-    const items = b.wabaItems || [];
-    if (!items.length) return '<div class="gpm-info">Sin cuentas de WhatsApp API (o falta el permiso whatsapp_business_management).</div>';
-    const rows = items.map(w => `<tr>
-        <td>${esc(w.name || '(sin nombre)')}<div style="font-size:10px;color:#94a3b8">${esc(w.id)} <button class="gpm-mini" data-copy="${esc(w.id)}" title="Copiar ID de la WABA">📋</button> · ${esc(w.origen || '')}</div></td>
-        <td style="white-space:nowrap"><button class="gpm-mini" data-waba="${esc(w.id)}" title="Ver números y su verificación">📞 Ver números</button></td>
-      </tr><tr data-nums="${esc(w.id)}"><td colspan="2" style="padding:0 8px 8px"></td></tr>`).join('');
-    return `<div class="gpm-scroll"><table class="gpm-table"><thead><tr><th>WABA</th><th>Números</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div style="margin-top:8px;font-size:11px;color:#64748b">OBA = cuenta oficial (tilde verde). "Verificación" es el registro del número; "Nombre" es el estado del nombre visible.</div>
-      <div style="margin-top:6px"><a class="gpm-link" href="${urlBMWa(b.id)}" target="_blank" rel="noopener">Ver en Configuración del negocio ↗</a></div>`;
+  // Popover de WABAs de un BM: estado, ID copiable y números (se cargan solos).
+  function abrirWaba(b) {
+    const pop = abrirPopover('WhatsApp (WABAs) · ' + esc(b.nombre), loader('Leyendo WABAs y sus números...'));
+    (async () => {
+      const cont = pop.querySelector('.gpm-pop-body');
+      if (!cont) return;
+      const items = b.wabaItems || [];
+      if (!items.length) { cont.innerHTML = '<div class="gpm-info">Sin cuentas de WhatsApp API (o falta el permiso whatsapp_business_management en tu sesión).</div>'; return; }
+      let html = `<div style="font-size:12px;color:#334155;margin-bottom:8px">${items.length} WABA(s) en este BM.</div>`;
+      for (const w of items) {
+        const nums = await fetchWabaNumbers(w.id);
+        html += `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-bottom:10px">
+          <div style="font-weight:600">${esc(w.name || '(sin nombre)')} <span class="gpm-pill ${wabaCls(w.account_review_status)}">${wabaEstado(w.account_review_status)}</span></div>
+          <div style="font-size:11px;color:#94a3b8;margin:2px 0 8px">${esc(w.id)} <button class="gpm-mini" data-copy="${esc(w.id)}" title="Copiar ID de la WABA">📋 copiar ID</button> · ${esc(w.origen || '')}</div>
+          ${renderNumeros(nums)}
+        </div>`;
+      }
+      cont.innerHTML = html
+        + `<div style="font-size:11px;color:#64748b">OBA = cuenta oficial (tilde verde) · "Verificación" = registro del número · "Estado" de la WABA es su revisión en Meta.</div>`
+        + `<div style="margin-top:6px"><a class="gpm-link" href="${urlBMWa(b.id)}" target="_blank" rel="noopener">Ver en Configuración del negocio ↗</a></div>`;
+    })();
   }
 
   // Lee los números de una WABA con su verificación / OBA (solo lectura).
@@ -397,7 +410,7 @@
   document.head.appendChild(style);
 
   // --- UI ------------------------------------------------------------
-  const VERSION = 'v3.2 · 2026-07';
+  const VERSION = 'v3.3 · 2026-07';
   // URL a un JSON {"version":"...","url":"..."} para avisar de nuevas versiones.
   // Si el CSP de la página lo bloquea, falla en silencio (no rompe nada).
   const UPDATE_URL = 'https://raw.githubusercontent.com/contingenciaiads1-cmd/gestion-activos-meta/main/version.json';
@@ -461,7 +474,7 @@
       if (!b) return;
       const a = ba.dataset.bizAction;
       if (a === 'ads') abrirPopover('Cuentas publicitarias · ' + esc(b.nombre), popAds(b));
-      else if (a === 'waba') abrirPopover('WhatsApp (WABAs) · ' + esc(b.nombre), popWaba(b));
+      else if (a === 'waba') abrirWaba(b);
       else if (a === 'users') abrirPopover('Usuarios · ' + esc(b.nombre), popUsers(b));
       else if (a === 'rename') abrirRename(b, () => render('business'));
       return;
@@ -559,6 +572,24 @@
     } catch (e) { return { count: null, items: [] }; }
   }
 
+  // Lee TODAS las WABAs de un edge del BM, paginando. Sin summary (ese parámetro
+  // hace fallar el edge de WhatsApp). El conteo real = número de WABAs leídas.
+  async function fetchWabas(bid, edge) {
+    const items = [];
+    let url = `${API}/${bid}/${edge}?access_token=${token}&fields=id,name,account_review_status,ownership_type&limit=100`;
+    try {
+      while (url) {
+        const r = await fetch(url, { credentials: 'include' });
+        const j = await r.json();
+        if (j.error) break;
+        (j.data || []).forEach(w => items.push(w));
+        url = j.paging?.next || null;
+        if (url) await sleep(200);
+      }
+    } catch (e) {}
+    return items;
+  }
+
   async function cargarBusinesses() {
     if (businessCargados) return businesses;
     if (!token) throw new Error('No se detectó el token de sesión. Abre esto en business.facebook.com.');
@@ -595,16 +626,18 @@
         edgeCount(b.id, 'client_pages'),
         edgeList(b.id, 'owned_ad_accounts', 'id,name,account_id,account_status,disable_reason,currency,amount_spent,spend_cap,funding_source_details'),
         edgeList(b.id, 'client_ad_accounts', 'id,name,account_id,account_status,disable_reason,currency,amount_spent,spend_cap,funding_source_details'),
-        edgeList(b.id, 'owned_whatsapp_business_accounts', 'id,name'),
-        edgeList(b.id, 'client_whatsapp_business_accounts', 'id,name')
+        fetchWabas(b.id, 'owned_whatsapp_business_accounts'),
+        fetchWabas(b.id, 'client_whatsapp_business_accounts')
       ]);
       b.usuarios = bu.count; b.systemUsers = su.count;
       b.usersItems = [...bu.items.map(x => ({ ...x, tipo: 'persona' })), ...su.items.map(x => ({ ...x, tipo: 'sistema' }))];
       b.pagsOwned = po; b.pagsClient = pc;
       b.adsOwned = ao.count; b.adsClient = ac.count;
       b.adsItems = [...ao.items.map(x => ({ ...x, origen: 'propia' })), ...ac.items.map(x => ({ ...x, origen: 'compartida' }))];
-      b.wabaOwned = wo.count; b.wabaClient = wc.count;
-      b.wabaItems = [...wo.items.map(x => ({ ...x, origen: 'propia' })), ...wc.items.map(x => ({ ...x, origen: 'compartida' }))];
+      // WABAs: conteo real = cantidad de WABAs leídas (owned + client).
+      b.wabaItems = [...wo.map(x => ({ ...x, origen: 'propia' })), ...wc.map(x => ({ ...x, origen: 'compartida' }))];
+      b.wabaOwned = { n: wo.length, approx: false };
+      b.wabaClient = { n: wc.length, approx: false };
       await sleep(150);
     }
     businessCargados = true;
