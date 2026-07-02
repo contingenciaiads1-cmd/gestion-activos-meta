@@ -1,7 +1,9 @@
 // Genera index.html (landing) embebiendo el bookmarklet comprimido como enlace arrastrable.
 import { readFileSync, writeFileSync } from 'fs';
 
-const bm = readFileSync('gestor-meta-comprimido.txt', 'utf8').trim();
+// En Facebook el CSP bloquea eval y scripts externos: SOLO funciona la versión
+// plana (IIFE, sin eval). Por eso la landing usa el bookmarklet plano.
+const bm = readFileSync('gestor-meta-bookmarklet.txt', 'utf8').trim();
 const esc = s => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const hrefBm = esc(bm);
 
@@ -52,10 +54,11 @@ const html = `<!DOCTYPE html>
     <h1>Gestión de Activos Meta <span class="ver">v3.1</span></h1>
     <p class="sub">Audita en segundos todo lo que hay en tu perfil de Meta: páginas, Business Managers, cuentas publicitarias, tarjetas y WhatsApp. Sin instalar nada, directo en tu navegador.</p>
     <div class="cta">
-      <a class="bm" id="bm" href="${hrefBm}" onclick="return false" title="Arrástrame a tu barra de marcadores">🗂️ Gestión de Activos</a>
-      <button class="copy" id="copyBtn" type="button">📋 Copiar bookmarklet</button>
-      <span class="hint">Arrástralo a tu <b>barra de marcadores</b>, <b>o</b> pulsa <b>Copiar</b> y pégalo como URL en un marcador nuevo.</span>
+      <button class="copy" id="copyBtn" type="button">📋 Copiar bookmarklet (recomendado)</button>
+      <a class="bm" id="bm" href="${hrefBm}" onclick="return false" title="Arrástrame a tu barra de marcadores">🗂️ o arrastra esto</a>
+      <span class="hint"><b>Lo más fiable:</b> pulsa <b>Copiar</b> → crea un marcador nuevo → pega el enlace como URL. (Arrastrar puede fallar por el tamaño del código.)</span>
     </div>
+    <textarea id="bmSrc" style="position:absolute;left:-9999px;top:-9999px" readonly>${esc(bm)}</textarea>
   </div>
 </header>
 
@@ -102,13 +105,13 @@ const html = `<!DOCTYPE html>
 </footer>
 <script>
   (function(){
-    var btn=document.getElementById('copyBtn'), bm=document.getElementById('bm');
-    if(!btn||!bm)return;
+    var btn=document.getElementById('copyBtn'), src=document.getElementById('bmSrc');
+    if(!btn||!src)return;
     btn.addEventListener('click',function(){
-      var code=bm.getAttribute('href');
-      function done(){var t=btn.textContent;btn.textContent='✅ Copiado — crea un marcador y pégalo';setTimeout(function(){btn.textContent=t;},2500);}
+      var code=src.value;
+      function done(){var t=btn.textContent;btn.textContent='✅ Copiado — crea un marcador y pégalo como URL';setTimeout(function(){btn.textContent=t;},2800);}
       if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(code).then(done).catch(fallback);}else{fallback();}
-      function fallback(){var ta=document.createElement('textarea');ta.value=code;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}ta.remove();done();}
+      function fallback(){src.style.left='0';src.focus();src.select();try{document.execCommand('copy');}catch(e){}src.style.left='-9999px';done();}
     });
   })();
 </script>

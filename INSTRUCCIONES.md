@@ -11,15 +11,19 @@ Panel que audita tu perfil de Meta (páginas, Business Managers, cuentas publici
 
 Si el navegador muestra «Stop!» en la consola, escribe `allow pasting` y pulsa Enter.
 
-## Formas de compartir (elige una)
+## ⚠️ Importante sobre Facebook y el CSP
 
-| Forma | Archivo | Se actualiza solo | Notas |
+En **facebook.com / business.facebook.com** la política de seguridad (CSP) **bloquea `eval` y los scripts externos**. Por eso, en Facebook **solo funciona el bookmarklet PLANO** (`gestor-meta-bookmarklet.txt`), que es un IIFE normal sin `eval`. El **comprimido** (LZString + `eval`) y el **cargador remoto** (script externo) **NO corren en Facebook** — quedan solo para entornos sin ese CSP.
+
+## Formas de compartir
+
+| Forma | Archivo | ¿Funciona en Facebook? | Se actualiza solo |
 |---|---|---|---|
-| **Comprimido** (como fbacc.io) | `gestor-meta-comprimido.txt` | No (recompartir) | Código ofuscado con LZString. Autocontenido, funciona aunque el CSP bloquee cargas externas. |
-| **Cargador remoto** | `cargador-bookmarklet.txt` | **Sí** | Baja el código desde jsDelivr. En business.facebook.com el CSP puede bloquearlo → usar el comprimido o pegar en consola. |
-| **Legible** | `gestor-meta-bookmarklet.txt` | No | Igual que el comprimido pero sin ofuscar (para depurar). |
+| **Plano** (recomendado) | `gestor-meta-bookmarklet.txt` | ✅ Sí | No (recompartir) |
+| Comprimido (fbacc.io style) | `gestor-meta-comprimido.txt` | ❌ No (usa eval, bloqueado) | No |
+| Cargador remoto | `cargador-bookmarklet.txt` | ❌ No (script externo, bloqueado) | Sí (fuera de FB) |
 
-La **landing** ya usa el comprimido, así que compartir = pasar el enlace de la landing.
+La **landing** usa el **plano**, así que compartir = pasar el enlace de la landing. Instalar: pulsa **📋 Copiar** y pega el enlace en un marcador nuevo (arrastrar puede truncarse por el tamaño).
 
 ## Cómo publicar una versión nueva (mantenimiento)
 
