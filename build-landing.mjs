@@ -49,7 +49,7 @@ const html = `<!DOCTYPE html>
 <header>
   <div class="wrap">
     <div class="brand">🤖 Converxio · agencia IADS</div>
-    <h1>Gestión de Activos Meta <span class="ver">v3.0</span></h1>
+    <h1>Gestión de Activos Meta <span class="ver">v3.1</span></h1>
     <p class="sub">Audita en segundos todo lo que hay en tu perfil de Meta: páginas, Business Managers, cuentas publicitarias, tarjetas y WhatsApp. Sin instalar nada, directo en tu navegador.</p>
     <div class="cta">
       <a class="bm" id="bm" href="${hrefBm}" onclick="return false" title="Arrástrame a tu barra de marcadores">🗂️ Gestión de Activos</a>
