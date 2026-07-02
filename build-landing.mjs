@@ -51,7 +51,7 @@ const html = `<!DOCTYPE html>
 <header>
   <div class="wrap">
     <div class="brand">🤖 Converxio · agencia IADS</div>
-    <h1>Gestión de Activos Meta <span class="ver">v3.1</span></h1>
+    <h1>Gestión de Activos Meta <span class="ver">v3.2</span></h1>
     <p class="sub">Audita en segundos todo lo que hay en tu perfil de Meta: páginas, Business Managers, cuentas publicitarias, tarjetas y WhatsApp. Sin instalar nada, directo en tu navegador.</p>
     <div class="cta">
       <button class="copy" id="copyBtn" type="button">📋 Copiar bookmarklet (recomendado)</button>

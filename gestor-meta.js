@@ -90,7 +90,8 @@
     return { cls:'gpm-warn', txt:'🟡 Limitado', word:'limitado', det:'Sin verificar · WABAs limitadas hasta verificar el negocio' };
   };
   // Muestra un conteo (o "—" si no se pudo obtener); "+" = puede haber más.
-  const cnt  = (c) => c == null ? '<span title="sin dato o sin permiso">—</span>' : (fmtNum(c.n) + (c.approx ? '+' : ''));
+  // Texto plano SIEMPRE: se usa también dentro de atributos title="...".
+  const cnt  = (c) => c == null ? '—' : (fmtNum(c.n) + (c.approx ? '+' : ''));
   const suma = (a,b) => { if (a==null && b==null) return null; return { n:(a?a.n:0)+(b?b.n:0), approx:(a&&a.approx)||(b&&b.approx) }; };
   const numCsv = (c) => c == null ? '' : c.n;
   const adStatus = (s) => ({1:'🟢 Activa',2:'🔴 Inhabilitada',3:'🟠 Sin liquidar',7:'⏳ Revisión de riesgo',8:'⏳ Pago pendiente',9:'🟡 Periodo de gracia',100:'🔴 Cierre pendiente',101:'🔴 Cerrada',201:'🟢 Activa',202:'🔴 Cerrada'}[s] || ('Estado ' + (s==null?'—':s)));
@@ -336,14 +337,14 @@
     .gpm-tabs{display:flex;background:#f1f5f9;border-bottom:1px solid #e2e8f0;overflow-x:auto;flex:0 0 auto}
     .gpm-tab{padding:10px 14px;border:none;background:none;font-size:13px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent}
     .gpm-tab.active{color:#2563eb;border-bottom-color:#2563eb;background:#fff}
-    .gpm-body{padding:14px 18px;overflow-y:auto;flex:1 1 auto;min-height:0}
+    .gpm-body{padding:14px 18px;overflow:auto;flex:1 1 auto;min-height:0}
     .gpm-scroll{width:100%;overflow-x:auto}
     .gpm-btn{padding:9px 16px;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;background:#2563eb;color:#fff;margin-right:8px}
     .gpm-btn.sec{background:#fff;color:#475569;border:1px solid #cbd5e1}
     .gpm-btn:disabled{opacity:.5;cursor:not-allowed}
     .gpm-search{width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;margin:12px 0;font-size:13px;box-sizing:border-box}
     .gpm-table{width:100%;border-collapse:collapse;font-size:12px}
-    .gpm-table th{background:#2563eb;color:#fff;padding:8px;text-align:left;position:sticky;top:0}
+    .gpm-table th{background:#2563eb;color:#fff;padding:8px;text-align:left;position:sticky;top:-1px;z-index:3}
     .gpm-table td{padding:7px 8px;border-bottom:1px solid #eef2f7}
     .gpm-table tr:nth-child(even){background:#f8fafc}
     .gpm-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;margin-left:6px;color:#fff}
@@ -396,7 +397,7 @@
   document.head.appendChild(style);
 
   // --- UI ------------------------------------------------------------
-  const VERSION = 'v3.1 · 2026-07';
+  const VERSION = 'v3.2 · 2026-07';
   // URL a un JSON {"version":"...","url":"..."} para avisar de nuevas versiones.
   // Si el CSP de la página lo bloquea, falla en silencio (no rompe nada).
   const UPDATE_URL = 'https://raw.githubusercontent.com/contingenciaiads1-cmd/gestion-activos-meta/main/version.json';
@@ -734,8 +735,8 @@
           <span id="aCount" style="font-size:11px;color:#64748b"></span>
         </div>
         <input class="gpm-search" id="aSearch" placeholder="Buscar por nombre o ID (act_...)" value="${esc(adQ)}">
-        <div class="gpm-scroll"><table class="gpm-table"><thead><tr><th>Cuenta</th><th>Estado</th><th>Tarjeta</th><th>Gastado</th><th>Límite</th><th>Creada</th><th>Business Manager</th></tr></thead>
-        <tbody id="aBody"></tbody></table></div>`;
+        <table class="gpm-table"><thead><tr><th>Cuenta</th><th>Estado</th><th>Tarjeta</th><th>Gastado</th><th>Límite</th><th>Creada</th><th>Business Manager</th></tr></thead>
+        <tbody id="aBody"></tbody></table>`;
 
       const pasa = (a) => {
         const act = a.account_status;
@@ -818,8 +819,8 @@
           <span id="pProg" style="font-size:11px;color:#64748b"></span>
         </div>
         <input class="gpm-search" id="pSearch" placeholder="Buscar por nombre o ID de página..." value="${esc(pagQ)}">
-        <div class="gpm-scroll"><table class="gpm-table"><thead><tr><th>Página</th><th>Seguidores</th><th>Creada</th><th>Publicada</th><th>Restricción</th><th>Tu rol</th><th>Personas</th><th>Business Manager</th></tr></thead>
-        <tbody id="pBody"></tbody></table></div>`;
+        <table class="gpm-table"><thead><tr><th>Página</th><th>Seguidores</th><th>Creada</th><th>Publicada</th><th>Restricción</th><th>Tu rol</th><th>Personas</th><th>Business Manager</th></tr></thead>
+        <tbody id="pBody"></tbody></table>`;
       };
 
       const pasa = (p) => {
@@ -910,8 +911,8 @@
           <span id="gpmBizCount" style="font-size:11px;color:#64748b"></span>
         </div>
         <input class="gpm-search" id="gpmSearch4" placeholder="Buscar por nombre o ID de BM..." value="${esc(bizQ)}">
-        <div class="gpm-scroll"><table class="gpm-table"><thead><tr><th>Business Manager</th><th>Antigüedad</th><th>Verificación</th><th>Estado</th><th>Apto WhatsApp</th><th>Usuarios</th><th>Páginas</th><th>Cuentas pub.</th><th>WABAs</th></tr></thead>
-        <tbody id="gpmBizBody"></tbody></table></div>`;
+        <table class="gpm-table"><thead><tr><th>Business Manager</th><th>Antigüedad</th><th>Verificación</th><th>Estado</th><th>Apto WhatsApp</th><th>Usuarios</th><th>Páginas</th><th>Cuentas pub.</th><th>WABAs</th></tr></thead>
+        <tbody id="gpmBizBody"></tbody></table>`;
 
       const pasaFiltros = (b) => {
         if (fEstado === 'limpio' && b.disabled) return false;
