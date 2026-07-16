@@ -1,5 +1,5 @@
 {
-  "version": "v3.4 · 2026-07",
+  "version": "v3.5 · 2026-07",
   "url": "https://github.com/contingenciaiads1-cmd/gestion-activos-meta",
-  "notas": "Resumen: estado/restricciones del perfil, antiguedad aprox., ubicacion declarada, boton Abrir Business Manager."
+  "notas": "Deteccion de token mas robusta (funciona en Ads Manager/www); botones Ubicacion real, Diagnostico y Account Quality en Resumen."
 }

@@ -6,10 +6,11 @@
   // dominios de Facebook/Meta; si se abre en otra web, se detiene para que
   // el token nunca quede expuesto en una página que no controla Meta.
   const HOST = location.hostname || '';
-  const DOMINIOS_OK = ['facebook.com', 'business.facebook.com', 'meta.com', 'business.meta.com'];
+  // Cubre facebook.com y TODOS sus subdominios (adsmanager, business, www, web, m…) + meta.com.
+  const DOMINIOS_OK = ['facebook.com', 'meta.com'];
   const dominioValido = DOMINIOS_OK.some(d => HOST === d || HOST.endsWith('.' + d));
   if (!dominioValido) {
-    alert('Gestor Meta: por seguridad, este panel solo funciona dentro de Facebook / Business Manager (facebook.com o business.facebook.com). Abre esa pestaña e inténtalo ahí.\n\nDominio actual: ' + HOST);
+    alert('Gestor Meta: por seguridad, este panel solo funciona dentro de Facebook (facebook.com y subdominios). Abre esa pestaña e inténtalo ahí.\n\nDominio actual: ' + HOST);
     return;
   }
 
@@ -19,11 +20,21 @@
   document.getElementById('gpm-pop')?.remove();
 
   // --- token de sesión ----------------------------------------------
+  // Se busca en varias fuentes porque cada superficie de Meta lo expone distinto
+  // (la raíz business.facebook.com/ a veces NO lo trae; Ads Manager y www sí).
   let token, businessID, fbDtsg, userId;
   try { token = require('WebApiApplication').getAccessToken(); } catch (e) {}
+  if (!token) { try { token = require('CurrentBusinessUser')?.accessToken; } catch (e) {} }
   if (!token) {
-    const m = document.documentElement.innerHTML.match(/"accessToken":"(EAA[^"]+)"/);
-    if (m) token = m[1];
+    const html = document.documentElement.innerHTML;
+    const patrones = [
+      /"accessToken":"(EAA[^"\\]+)"/,
+      /accessToken\\?"\s*:\s*\\?"(EAA[^"\\]+)/,
+      /\[\s*"accessToken"\s*,\s*"(EAA[^"\\]+)"/,
+      /"token":"(EAAB[^"\\]+)"/,
+      /(EAAG\w{30,})/, /(EAAB\w{30,})/, /(EAAD\w{30,})/
+    ];
+    for (const re of patrones) { const m = html.match(re); if (m) { token = m[1]; break; } }
   }
   try { businessID = require('BusinessUnifiedNavigationContext').businessID; } catch (e) {}
   if (!businessID) businessID = new URLSearchParams(location.search).get('business_id');
@@ -410,7 +421,7 @@
   document.head.appendChild(style);
 
   // --- UI ------------------------------------------------------------
-  const VERSION = 'v3.4 · 2026-07';
+  const VERSION = 'v3.5 · 2026-07';
   // URL a un JSON {"version":"...","url":"..."} para avisar de nuevas versiones.
   // Si el CSP de la página lo bloquea, falla en silencio (no rompe nada).
   const UPDATE_URL = 'https://raw.githubusercontent.com/contingenciaiads1-cmd/gestion-activos-meta/main/version.json';
@@ -497,7 +508,7 @@
   // --- carga de páginas (compartida) ---------------------------------
   async function cargarPaginas() {
     if (paginas.length) return paginas;
-    if (!token) throw new Error('No se detectó el token de sesión. Abre esto en business.facebook.com.');
+    if (!token) throw new Error('No se detectó el token de sesión en esta página. Abre el panel desde el Administrador de Anuncios (adsmanager.facebook.com) o tu perfil (www.facebook.com), donde la sesión sí trae el token.');
     paginas = [];
     let url = `${API}/me/accounts?access_token=${token}`
             + `&fields=id,name,access_token,tasks,is_published,followers_count,fan_count,page_created_time,business`
@@ -592,7 +603,7 @@
 
   async function cargarBusinesses() {
     if (businessCargados) return businesses;
-    if (!token) throw new Error('No se detectó el token de sesión. Abre esto en business.facebook.com.');
+    if (!token) throw new Error('No se detectó el token de sesión en esta página. Abre el panel desde el Administrador de Anuncios (adsmanager.facebook.com) o tu perfil (www.facebook.com), donde la sesión sí trae el token.');
     businesses = [];
     // 1) lista base de BMs (campos fiables en un solo llamado)
     let url = `${API}/me/businesses?access_token=${token}`
@@ -647,7 +658,7 @@
   // --- carga de cuentas publicitarias del perfil ---------------------
   async function cargarAdAccounts() {
     if (adaccountsCargados) return adaccounts;
-    if (!token) throw new Error('No se detectó el token de sesión. Abre esto en business.facebook.com.');
+    if (!token) throw new Error('No se detectó el token de sesión en esta página. Abre el panel desde el Administrador de Anuncios (adsmanager.facebook.com) o tu perfil (www.facebook.com), donde la sesión sí trae el token.');
     adaccounts = [];
     let url = `${API}/me/adaccounts?access_token=${token}`
             + `&fields=id,name,account_id,account_status,disable_reason,currency,amount_spent,spend_cap,funding_source_details,business,created_time`
@@ -763,6 +774,11 @@
           </div>
           <a class="gpm-btn" style="text-decoration:none;white-space:nowrap" href="https://business.facebook.com/latest/home" target="_blank" rel="noopener">🏢 Abrir Business Manager</a>
         </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px">
+          <a class="gpm-btn sec" style="text-decoration:none" href="https://www.facebook.com/primary_location/info" target="_blank" rel="noopener" title="Ubicación principal real que Meta asigna al perfil (dónde está 'sumergido')">📍 Ubicación real del perfil (Meta)</a>
+          <a class="gpm-btn sec" style="text-decoration:none" href="https://www.facebook.com/diagnostics" target="_blank" rel="noopener" title="Datos y diagnóstico del perfil según Meta">🩺 Diagnóstico del perfil</a>
+          <a class="gpm-btn sec" style="text-decoration:none" href="https://business.facebook.com/accountquality" target="_blank" rel="noopener" title="Estado real de restricciones">🛡️ Account Quality</a>
+        </div>
         <div class="gpm-cards">
           ${tarjeta('🛡️','Estado del perfil', `<span class="gpm-pill ${estadoPerfil.cls}">${estadoPerfil.txt}</span>`, `${restr>0?`${pagDie} págs · ${bmRestr} BMs · ${adsInhab} cuentas restringidas`:'páginas, BMs y cuentas OK'} · <a class="gpm-link" href="https://business.facebook.com/accountquality" target="_blank" rel="noopener">Account Quality ↗</a>`)}
           ${tarjeta('🗓️','Antigüedad (aprox.)', masAntiguo ? antiguedad(masAntiguo) : '—', masAntiguo ? ('activo más antiguo: ' + formatFecha(masAntiguo)) : 'Meta no expone la fecha del perfil')}
@@ -776,7 +792,7 @@
           ${tarjeta('💰','Gasto acumulado', gastoStr, 'suma de tus cuentas publicitarias')}
           ${tarjeta('🔑','Sesión', token ? 'OK' : '—', `${userId ? 'usuario ' + esc(String(userId)) : 'sin USER_ID'}${fbDtsg ? ' · restricción disponible' : ''}`)}
         </div>
-        <div class="gpm-info" style="font-size:11px;color:#64748b;margin-top:10px">ℹ️ Meta <b>no expone por API</b> la fecha de creación ni la ubicación real/IP de un perfil. La <b>antigüedad</b> es una estimación por el activo más antiguo; la <b>ubicación</b> es la declarada por el usuario (si el permiso lo permite). El <b>estado real</b> de restricción está en Account Quality (enlace arriba).</div>`;
+        <div class="gpm-info" style="font-size:11px;color:#64748b;margin-top:10px">ℹ️ Meta <b>no expone por API</b> la fecha de creación ni la ubicación real/IP de un perfil. Aquí la <b>antigüedad</b> es una estimación por el activo más antiguo y la <b>ubicación</b> es la declarada por el usuario. Para el dato <b>real</b> usa los botones de arriba: <b>📍 Ubicación real</b> (dónde está "sumergido" el perfil), <b>🩺 Diagnóstico</b> y <b>🛡️ Account Quality</b> (restricciones) — son las páginas oficiales de Meta con esa información.</div>`;
       return;
     }
 
