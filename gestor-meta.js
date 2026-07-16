@@ -410,7 +410,7 @@
   document.head.appendChild(style);
 
   // --- UI ------------------------------------------------------------
-  const VERSION = 'v3.3 · 2026-07';
+  const VERSION = 'v3.4 · 2026-07';
   // URL a un JSON {"version":"...","url":"..."} para avisar de nuevas versiones.
   // Si el CSP de la página lo bloquea, falla en silencio (no rompe nada).
   const UPDATE_URL = 'https://raw.githubusercontent.com/contingenciaiads1-cmd/gestion-activos-meta/main/version.json';
@@ -673,14 +673,26 @@
     return adaccounts;
   }
 
-  // Datos básicos del perfil (para el resumen/auditoría).
+  // Datos del perfil (para el resumen/auditoría). Dos llamadas: una fiable
+  // (id, name) y otra "best-effort" para ubicación/idiomas (puede no tener permiso).
   async function cargarPerfil() {
     if (perfil) return perfil;
+    perfil = { id: userId || '—', name: '—', location: null, hometown: null, languages: [], ageRange: null };
     try {
       const r = await fetch(`${API}/me?access_token=${token}&fields=id,name`, { credentials: 'include' });
       const j = await r.json();
-      perfil = { id: j.id || userId || '—', name: j.name || '—' };
-    } catch (e) { perfil = { id: userId || '—', name: '—' }; }
+      if (!j.error) { perfil.id = j.id || perfil.id; perfil.name = j.name || perfil.name; }
+    } catch (e) {}
+    try {
+      const r = await fetch(`${API}/me?access_token=${token}&fields=location{name},hometown{name},languages{name},age_range`, { credentials: 'include' });
+      const j = await r.json();
+      if (!j.error) {
+        perfil.location = (j.location && j.location.name) || null;
+        perfil.hometown = (j.hometown && j.hometown.name) || null;
+        perfil.languages = (j.languages || []).map(l => l.name).filter(Boolean);
+        perfil.ageRange = j.age_range || null;
+      }
+    } catch (e) {}
     return perfil;
   }
 
@@ -700,8 +712,11 @@
       try { await cargarPaginas(); } catch (e) { errores.push('Páginas: ' + e.message); }
       try { await cargarBusinesses(); } catch (e) { errores.push('Business: ' + e.message); }
       try { await cargarAdAccounts(); } catch (e) { errores.push('Cuentas: ' + e.message); }
+      // Restricción de páginas (Account Quality) para el veredicto de estado.
+      if (userId && fbDtsg && !paginas.some(p => p.acceso)) { try { await comprobarRestriccion(); } catch (e) {} }
 
       const pagRestr = paginas.filter(p => p.acceso === 'die' || p.acceso === 'pzrd').length;
+      const pagDie = paginas.filter(p => p.acceso === 'die').length;
       const bmVerif = businesses.filter(b => (b.verif||'').toLowerCase()==='verified').length;
       const bmRestr = businesses.filter(b => b.disabled).length;
       const bmAptos = businesses.filter(b => !b.disabled && !['rejected','revoked','failed'].includes((b.verif||'').toLowerCase())).length;
@@ -712,6 +727,23 @@
       const gastoTotal = {};
       adaccounts.forEach(a => { if (a.amount_spent != null) { const c = a.currency || '—'; gastoTotal[c] = (gastoTotal[c]||0) + Number(a.amount_spent); } });
       const gastoStr = Object.keys(gastoTotal).length ? Object.entries(gastoTotal).map(([c,v]) => dinero(v, c)).join(' · ') : '—';
+
+      // Antigüedad aproximada = activo más antiguo (Meta NO expone la fecha del perfil).
+      const fechas = [];
+      paginas.forEach(p => { if (p.creada) fechas.push(Number(p.creada)); });
+      businesses.forEach(b => { if (b.creada) fechas.push(Number(b.creada)); });
+      adaccounts.forEach(a => { if (a.creada) fechas.push(Number(a.creada)); });
+      const masAntiguo = fechas.length ? Math.min.apply(null, fechas) : null;
+
+      // Estado del perfil (derivado; Meta no da un campo "cuenta restringida" por API).
+      const restr = pagDie + bmRestr + adsInhab;
+      const estadoPerfil = restr > 0
+        ? { cls:'gpm-no', txt:'⚠️ Con restricciones' }
+        : { cls:'gpm-ok', txt:'🟢 Sin restricciones detectadas' };
+
+      // Ubicación declarada (la real/IP no está disponible por API).
+      const ubic = perfil.location || perfil.hometown || null;
+      const idiomas = (perfil.languages || []).slice(0, 3).join(', ');
 
       const tarjeta = (icono, titulo, valor, sub) => `
         <div class="gpm-card">
@@ -725,12 +757,16 @@
         ${errores.length ? `<div class="gpm-info" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">⚠️ ${errores.map(esc).join('<br>')}</div>` : ''}
         <div class="gpm-perfil">
           <div class="gpm-perfil-av">${esc((perfil.name||'?').slice(0,1).toUpperCase())}</div>
-          <div>
-            <div style="font-weight:700;font-size:15px">${esc(perfil.name||'—')}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:15px">${esc(perfil.name||'—')} <span class="gpm-pill ${estadoPerfil.cls}">${estadoPerfil.txt}</span></div>
             <div style="font-size:12px;color:#64748b">ID ${esc(String(perfil.id))} <button class="gpm-mini" data-copy="${esc(String(perfil.id))}" title="Copiar ID del perfil">📋</button>${businessID ? ' · contexto BM ' + esc(businessID) : ''}</div>
           </div>
+          <a class="gpm-btn" style="text-decoration:none;white-space:nowrap" href="https://business.facebook.com/latest/home" target="_blank" rel="noopener">🏢 Abrir Business Manager</a>
         </div>
         <div class="gpm-cards">
+          ${tarjeta('🛡️','Estado del perfil', `<span class="gpm-pill ${estadoPerfil.cls}">${estadoPerfil.txt}</span>`, `${restr>0?`${pagDie} págs · ${bmRestr} BMs · ${adsInhab} cuentas restringidas`:'páginas, BMs y cuentas OK'} · <a class="gpm-link" href="https://business.facebook.com/accountquality" target="_blank" rel="noopener">Account Quality ↗</a>`)}
+          ${tarjeta('🗓️','Antigüedad (aprox.)', masAntiguo ? antiguedad(masAntiguo) : '—', masAntiguo ? ('activo más antiguo: ' + formatFecha(masAntiguo)) : 'Meta no expone la fecha del perfil')}
+          ${tarjeta('📍','Ubicación (declarada)', ubic ? esc(ubic) : '—', ubic ? (idiomas ? ('idiomas: ' + esc(idiomas)) : 'declarada por el usuario') : 'no disponible por API (permiso/privacidad)')}
           ${tarjeta('📋','Páginas', fmtNum(paginas.length), pagRestr ? ('⚠️ ' + pagRestr + ' con restricción') : 'clic en la pestaña Páginas')}
           ${tarjeta('🏢','Business Managers', fmtNum(businesses.length), `✅ ${bmVerif} verificados · 🔴 ${bmRestr} restringidos`)}
           ${tarjeta('🟢','BMs aptos WhatsApp', fmtNum(bmAptos), `de ${businesses.length} BMs`)}
@@ -739,7 +775,8 @@
           ${tarjeta('📱','WABAs (WhatsApp API)', fmtNum(wabaTotal), 'cuentas de WhatsApp en tus BMs')}
           ${tarjeta('💰','Gasto acumulado', gastoStr, 'suma de tus cuentas publicitarias')}
           ${tarjeta('🔑','Sesión', token ? 'OK' : '—', `${userId ? 'usuario ' + esc(String(userId)) : 'sin USER_ID'}${fbDtsg ? ' · restricción disponible' : ''}`)}
-        </div>`;
+        </div>
+        <div class="gpm-info" style="font-size:11px;color:#64748b;margin-top:10px">ℹ️ Meta <b>no expone por API</b> la fecha de creación ni la ubicación real/IP de un perfil. La <b>antigüedad</b> es una estimación por el activo más antiguo; la <b>ubicación</b> es la declarada por el usuario (si el permiso lo permite). El <b>estado real</b> de restricción está en Account Quality (enlace arriba).</div>`;
       return;
     }
 

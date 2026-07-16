@@ -1,5 +1,5 @@
 {
-  "version": "v3.3 · 2026-07",
+  "version": "v3.4 · 2026-07",
   "url": "https://github.com/contingenciaiads1-cmd/gestion-activos-meta",
-  "notas": "Lectura de WABAs corregida (conteo real, estado activa/restringida, copiar ID, numeros); columna Paginas y cabecera fija."
+  "notas": "Resumen: estado/restricciones del perfil, antiguedad aprox., ubicacion declarada, boton Abrir Business Manager."
 }
